@@ -107,24 +107,34 @@ fn main() {
     let param_count: usize = model.parameters().iter().map(|p| p.numel()).sum();
     println!("model: {param_count} trainable parameters");
 
-    let batch_size = 32;
-    let num_steps = 2000;
-    let mut optimizer = Adam::new(model.parameters(), 3e-3);
+    let checkpoint_path = corpus_path.with_file_name("model.ckpt");
     let mut rng = StdRng::seed_from_u64(0);
 
-    for step in 0..num_steps {
-        let (inputs, targets) = sample_batch(train_data, block_size, batch_size, &mut rng);
-        let logits = model.forward(&inputs, batch_size, block_size).reshape(&[batch_size * block_size, vocab.len()]);
-        let loss = nn::cross_entropy_loss(&logits, &targets);
+    if checkpoint_path.exists() {
+        nn::load(&model.parameters(), &checkpoint_path).unwrap();
+        println!("loaded checkpoint from {}, skipping training", checkpoint_path.display());
+    } else {
+        let batch_size = 32;
+        let num_steps = 2000;
+        let mut optimizer = Adam::new(model.parameters(), 3e-3);
 
-        optimizer.zero_grad();
-        loss.backward();
-        optimizer.step();
+        for step in 0..num_steps {
+            let (inputs, targets) = sample_batch(train_data, block_size, batch_size, &mut rng);
+            let logits = model.forward(&inputs, batch_size, block_size).reshape(&[batch_size * block_size, vocab.len()]);
+            let loss = nn::cross_entropy_loss(&logits, &targets);
 
-        if step % 200 == 0 || step == num_steps - 1 {
-            let val_loss = estimate_loss(&model, val_data, block_size, batch_size, vocab.len(), &mut rng, 20);
-            println!("step {step}: train loss {:.4}, val loss {:.4}", loss.item(), val_loss);
+            optimizer.zero_grad();
+            loss.backward();
+            optimizer.step();
+
+            if step % 200 == 0 || step == num_steps - 1 {
+                let val_loss = estimate_loss(&model, val_data, block_size, batch_size, vocab.len(), &mut rng, 20);
+                println!("step {step}: train loss {:.4}, val loss {:.4}", loss.item(), val_loss);
+            }
         }
+
+        nn::save(&model.parameters(), &checkpoint_path).unwrap();
+        println!("saved checkpoint to {}", checkpoint_path.display());
     }
 
     let prompt = vocab.encode("\n");

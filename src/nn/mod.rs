@@ -1,4 +1,5 @@
 mod activations;
+mod checkpoint;
 mod conv;
 mod embedding;
 mod gpt;
@@ -11,6 +12,7 @@ mod sequential;
 mod transformer;
 
 pub use activations::{Flatten, ReLU, Sigmoid, Tanh, GELU};
+pub use checkpoint::{load, save};
 pub use conv::{AvgPool2d, Conv1d, Conv2d, MaxPool2d};
 pub use embedding::Embedding;
 pub use gpt::{GPTConfig, GPT};
