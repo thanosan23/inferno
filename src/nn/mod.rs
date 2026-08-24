@@ -1,17 +1,23 @@
 mod activations;
 mod conv;
 mod embedding;
+mod gpt;
+mod layer_norm;
 mod linear;
 mod loss;
 mod module;
 mod parameter;
 mod sequential;
+mod transformer;
 
-pub use activations::{Flatten, ReLU, Sigmoid, Tanh};
+pub use activations::{Flatten, ReLU, Sigmoid, Tanh, GELU};
 pub use conv::{AvgPool2d, Conv1d, Conv2d, MaxPool2d};
 pub use embedding::Embedding;
+pub use gpt::{GPTConfig, GPT};
+pub use layer_norm::LayerNorm;
 pub use linear::Linear;
 pub use loss::{accuracy, cross_entropy_loss, mse_loss};
 pub use module::Module;
 pub use parameter::Parameter;
 pub use sequential::Sequential;
+pub use transformer::{FeedForward, MultiHeadAttention, TransformerBlock};

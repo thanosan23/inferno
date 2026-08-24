@@ -1,5 +1,5 @@
 use crate::backend;
-use crate::layout::{swap_leading_axes, transpose_matrix};
+use crate::ops::layout::{swap_leading_axes, transpose_matrix};
 use crate::tensor::Tensor;
 
 struct Conv2dGeometry {

@@ -18,6 +18,7 @@ macro_rules! activation_module {
 activation_module!(ReLU, relu);
 activation_module!(Sigmoid, sigmoid);
 activation_module!(Tanh, tanh);
+activation_module!(GELU, gelu);
 
 pub struct Flatten;
 

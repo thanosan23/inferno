@@ -1,6 +1,12 @@
+mod attention;
+mod broadcast;
+mod conv;
+mod layout;
+mod normalization;
+
 use crate::backend;
-use crate::broadcast::{broadcast_binary, broadcast_shape, reduce_to_shape};
-use crate::layout::transpose_matrix;
+use crate::ops::broadcast::{broadcast_binary, broadcast_shape, reduce_to_shape};
+use crate::ops::layout::transpose_matrix;
 use crate::tensor::Tensor;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -42,6 +48,23 @@ fn unary_op(a: &Tensor, f: impl Fn(f32) -> f32, grad: impl Fn(f32) -> f32 + 'sta
     })
 }
 
+const GELU_SQRT_2_OVER_PI: f32 = 0.797_884_6;
+const GELU_CUBIC_COEFFICIENT: f32 = 0.044715;
+
+fn gelu_tanh_argument(x: f32) -> f32 {
+    GELU_SQRT_2_OVER_PI * (x + GELU_CUBIC_COEFFICIENT * x * x * x)
+}
+
+fn gelu_value(x: f32) -> f32 {
+    0.5 * x * (1.0 + gelu_tanh_argument(x).tanh())
+}
+
+fn gelu_derivative(x: f32) -> f32 {
+    let tanh_term = gelu_tanh_argument(x).tanh();
+    let tanh_argument_derivative = GELU_SQRT_2_OVER_PI * (1.0 + 3.0 * GELU_CUBIC_COEFFICIENT * x * x);
+    0.5 * (1.0 + tanh_term) + 0.5 * x * (1.0 - tanh_term * tanh_term) * tanh_argument_derivative
+}
+
 impl Tensor {
     pub fn add(&self, other: &Tensor) -> Tensor {
         binary_op(self, other, |a, b| a + b, |_, _| 1.0, |_, _| 1.0)
@@ -80,6 +103,10 @@ impl Tensor {
 
     pub fn tanh(&self) -> Tensor {
         unary_op(self, |x| x.tanh(), |x| 1.0 - x.tanh() * x.tanh())
+    }
+
+    pub fn gelu(&self) -> Tensor {
+        unary_op(self, gelu_value, gelu_derivative)
     }
 
     pub fn exp(&self) -> Tensor {

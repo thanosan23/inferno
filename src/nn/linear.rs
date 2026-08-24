@@ -22,7 +22,16 @@ impl Linear {
 
 impl Module for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
-        input.matmul(&self.weight).add(&self.bias)
+        let shape = input.shape();
+        let leading_dims = &shape[..shape.len() - 1];
+        let rows: usize = leading_dims.iter().product();
+
+        let flattened = input.reshape(&[rows, self.in_features]);
+        let projected = flattened.matmul(&self.weight).add(&self.bias);
+
+        let mut output_shape = leading_dims.to_vec();
+        output_shape.push(self.out_features);
+        projected.reshape(&output_shape)
     }
 
     fn parameters(&self) -> Vec<Parameter> {

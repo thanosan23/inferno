@@ -138,3 +138,93 @@ fn linear_layer_grad_flows_to_input() {
     let x = Tensor::rand(&[2, 4], 17);
     check("linear_layer", &x, |x| layer.forward(x).sum());
 }
+
+#[test]
+fn linear_layer_grad_flows_through_rank_3_input() {
+    use inferno::nn::{Linear, Module};
+    let layer = Linear::new(4, 3, 43);
+    let x = Tensor::rand(&[2, 5, 4], 18);
+    check("linear_layer_rank3", &x, |x| layer.forward(x).sum());
+}
+
+#[test]
+fn gelu_grad() {
+    let x = Tensor::from_fn(&[8], |i| -2.0 + i as f32 * 0.6);
+    check("gelu", &x, |x| x.gelu().sum());
+}
+
+#[test]
+fn layer_norm_grad() {
+    let x = Tensor::rand(&[4, 6], 19);
+    check("layer_norm", &x, |x| x.layer_norm(1e-5).sum());
+}
+
+#[test]
+fn layer_norm_module_grad() {
+    use inferno::nn::{LayerNorm, Module};
+    let layer = LayerNorm::new(6, 1e-5);
+    let x = Tensor::rand(&[4, 6], 20);
+    check("layer_norm_module", &x, |x| layer.forward(x).sum());
+}
+
+#[test]
+fn causal_self_attention_grad_q() {
+    let k = Tensor::rand(&[2, 5, 8], 21);
+    let v = Tensor::rand(&[2, 5, 8], 22);
+    let q = Tensor::rand(&[2, 5, 8], 23);
+    check("attention_q", &q, |q| Tensor::causal_self_attention(q, &k, &v, 2).sum());
+}
+
+#[test]
+fn causal_self_attention_grad_k() {
+    let q = Tensor::rand(&[2, 5, 8], 24);
+    let v = Tensor::rand(&[2, 5, 8], 25);
+    let k = Tensor::rand(&[2, 5, 8], 26);
+    check("attention_k", &k, |k| Tensor::causal_self_attention(&q, k, &v, 2).sum());
+}
+
+#[test]
+fn causal_self_attention_grad_v() {
+    let q = Tensor::rand(&[2, 5, 8], 27);
+    let k = Tensor::rand(&[2, 5, 8], 28);
+    let v = Tensor::rand(&[2, 5, 8], 29);
+    check("attention_v", &v, |v| Tensor::causal_self_attention(&q, &k, v, 2).sum());
+}
+
+#[test]
+fn causal_self_attention_ignores_future_tokens() {
+    let num_heads = 2;
+    let seq_len = 4;
+    let head_dim = 8;
+    let q = Tensor::rand(&[1, seq_len, head_dim], 30);
+    let k = Tensor::rand(&[1, seq_len, head_dim], 31);
+    let v = Tensor::rand(&[1, seq_len, head_dim], 32);
+    let baseline_output = Tensor::causal_self_attention(&q, &k, &v, num_heads).data();
+
+    let last_token_start = (seq_len - 1) * head_dim;
+    let mut future_perturbed_v = v.data();
+    for value in future_perturbed_v[last_token_start..last_token_start + head_dim].iter_mut() {
+        *value += 5.0;
+    }
+    let perturbed_v = Tensor::new(future_perturbed_v, v.shape());
+    let perturbed_output = Tensor::causal_self_attention(&q, &k, &perturbed_v, num_heads).data();
+
+    let earlier_positions_len = last_token_start;
+    assert_eq!(&baseline_output[..earlier_positions_len], &perturbed_output[..earlier_positions_len]);
+}
+
+#[test]
+fn gpt_end_to_end_grad() {
+    use inferno::nn::{GPTConfig, GPT};
+    let vocab_size = 6;
+    let (batch, seq_len) = (2, 4);
+    let config = GPTConfig { vocab_size, block_size: seq_len, d_model: 8, num_heads: 2, num_layers: 2, d_ff: 16, eps: 1e-5 };
+    let model = GPT::new(config, 42);
+    let token_ids = [1usize, 2, 3, 4, 0, 5, 2, 1];
+    let targets = [2usize, 3, 4, 0, 5, 2, 1, 3];
+
+    check("gpt_token_embedding", &model.token_embedding.weight, |_| {
+        let logits = model.forward(&token_ids, batch, seq_len).reshape(&[batch * seq_len, vocab_size]);
+        nn::cross_entropy_loss(&logits, &targets)
+    });
+}
